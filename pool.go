@@ -4,7 +4,7 @@ import "time"
 
 type XPool interface {
 	//获取一个新的资源
-	New() (interface{},error)
+	New() (interface{}, error)
 	//释放一个资源
 	Release(interface{}) error
 	//关闭一个资源
@@ -26,4 +26,8 @@ type Configs struct {
 	MaxWaitTime time.Duration
 	//空闲超时时间。当某个资源空闲时间超过设置阈值。则下次获取到时主动关闭它。防止已关闭的资源被使用
 	IdleTimeOut time.Duration
+	//创建资源的函数
+	Factory func() (interface{}, error)
+	//关闭一个资源的函数
+	Close func(interface{}) error
 }
