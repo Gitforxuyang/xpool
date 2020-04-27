@@ -2,6 +2,7 @@ package xpool
 
 import (
 	"errors"
+	"fmt"
 	"sync"
 	"time"
 )
@@ -124,10 +125,12 @@ func (m *xpool) Close(c interface{}) error {
 
 func (m *xpool) ShutDown() error {
 	m.shutdown = true
+	close(m.ch)
 	for c := range m.ch {
 		m.close(c.c)
 		m.currentActive--
 	}
+	fmt.Println("shutdown")
 	return nil
 }
 
@@ -162,6 +165,7 @@ func NewXPool(configs *Configs) (XPool, error) {
 		idleTimeOut:    configs.IdleTimeOut,
 		factory:        configs.Factory,
 		close:          configs.Close,
+		ch:             make(chan *conn, configs.MaxActive),
 	}
 	for i := 1; i < p.minActive; i++ {
 		c, err := p.factory()
