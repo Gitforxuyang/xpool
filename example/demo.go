@@ -27,7 +27,7 @@ func main() {
 			return &Client{}, nil
 		},
 		Close: func(i interface{}) error {
-			c := i.(Client)
+			c := i.(*Client)
 			c.Close()
 			return nil
 		},
@@ -40,5 +40,6 @@ func main() {
 	c, ok := client.(*Client)
 	fmt.Println(ok)
 	c.Doit()
+	pool.Release(client)
 	pool.ShutDown()
 }

@@ -116,6 +116,7 @@ func (m *xpool) Release(c interface{}) error {
 
 func (m *xpool) Close(c interface{}) error {
 	m.currentActive--
+	fmt.Println("Close")
 	err := m.close(c)
 	if err != nil {
 		return err
@@ -128,6 +129,7 @@ func (m *xpool) ShutDown() error {
 	close(m.ch)
 	for c := range m.ch {
 		m.close(c.c)
+		fmt.Println("close")
 		m.currentActive--
 	}
 	fmt.Println("shutdown")
