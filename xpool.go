@@ -2,7 +2,6 @@ package xpool
 
 import (
 	"errors"
-	"fmt"
 	"sync"
 	"time"
 )
@@ -55,6 +54,7 @@ reset:
 	default:
 	}
 	m.Lock()
+	defer m.Unlock()
 	//如果当前资源数小于最大资源数。则直接创建新的资源即可
 	if m.currentActive < m.maxActive {
 		c, err := m.factory()
@@ -63,16 +63,13 @@ reset:
 		}
 		conn := conn{c: c, time: time.Now()}
 		m.currentActive++
-		m.Unlock()
 		return conn, nil
 	}
 	//如果当前资源数已经饱和。则判断当前等待队列是否饱和。如果饱和则返回错误。如果不饱和则排队
 	if m.currentWait > m.maxActive {
-		m.Unlock()
 		return nil, waitListOverflowError
 	} else {
 		m.currentWait++
-		m.Unlock()
 		select {
 		//因为从排队队列中拿到的只会是刚丢回来的资源。所以不判断是否过期
 		case conn := <-m.ch:
@@ -116,7 +113,6 @@ func (m *xpool) Release(c interface{}) error {
 
 func (m *xpool) Close(c interface{}) error {
 	m.currentActive--
-	fmt.Println("Close")
 	err := m.close(c)
 	if err != nil {
 		return err
@@ -129,10 +125,8 @@ func (m *xpool) ShutDown() error {
 	close(m.ch)
 	for c := range m.ch {
 		m.close(c.c)
-		fmt.Println("close")
 		m.currentActive--
 	}
-	fmt.Println("shutdown")
 	return nil
 }
 
