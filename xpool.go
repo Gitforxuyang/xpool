@@ -54,27 +54,29 @@ reset:
 	default:
 	}
 	m.Lock()
-	defer m.Unlock()
 	//如果当前资源数小于最大资源数。则直接创建新的资源即可
 	if m.currentActive < m.maxActive {
 		c, err := m.factory()
 		if err != nil {
+			m.Unlock()
 			return nil, err
 		}
-		conn := conn{c: c, time: time.Now()}
 		m.currentActive++
-		return conn, nil
+		m.Unlock()
+		return c, nil
 	}
-	//如果当前资源数已经饱和。则判断当前等待队列是否饱和。如果饱和则返回错误。如果不饱和则排队
-	if m.currentWait > m.maxActive {
+	//如果当前排队数已超过最大。则直接返回错误
+	if m.currentWait >= m.maxWait {
+		m.Unlock()
 		return nil, waitListOverflowError
 	} else {
 		m.currentWait++
+		m.Unlock()
 		select {
 		//因为从排队队列中拿到的只会是刚丢回来的资源。所以不判断是否过期
 		case conn := <-m.ch:
 			m.currentWait--
-			return conn, nil
+			return conn.c, nil
 		case <-time.After(m.maxWaitTimeOut):
 			m.currentWait--
 			return nil, waitTimeOutError
@@ -93,12 +95,12 @@ func (m *xpool) Release(c interface{}) error {
 	m.Lock()
 	defer m.Unlock()
 	//如果当前资源数小于最小激活数。则直接将资源放回池子里
-	if m.currentActive < m.minActive {
+	if m.currentActive <= m.minActive {
 		m.ch <- &conn{c: c, time: time.Now()}
 		return nil
 	}
 	//如果当前资源数大于最小激活数但空闲资源数小于设置的可空闲资源数，则放回资源池
-	if len(m.ch) < m.maxIdle {
+	if len(m.ch) < m.minActive+m.maxIdle {
 		m.ch <- &conn{c: c, time: time.Now()}
 		return nil
 	}
