@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"sync/atomic"
 	"time"
 	"xpool"
 )
@@ -9,12 +10,12 @@ import (
 type Client struct {
 }
 
-var doitCount = 0
+var doitCount int32 = 0
 
 func (m *Client) Doit() {
-	time.Sleep(time.Millisecond * 500)
+	time.Sleep(time.Millisecond * 800)
 	fmt.Println("doit")
-	doitCount++
+	atomic.AddInt32(&doitCount, 1)
 }
 func (m *Client) Close() {
 	fmt.Println("close")
@@ -23,7 +24,7 @@ func main() {
 	config := xpool.Configs{
 		MaxActive:   10,
 		MinActive:   5,
-		MaxWaitTime: time.Second * 2,
+		MaxWaitTime: time.Second * 1,
 		MaxIdle:     2,
 		MaxWait:     20,
 		IdleTimeOut: time.Second * 10,
@@ -53,5 +54,5 @@ func main() {
 		}()
 	}
 	time.Sleep(time.Second * 10)
-	fmt.Println(doitCount)
+	fmt.Println(atomic.LoadInt32(&doitCount))
 }

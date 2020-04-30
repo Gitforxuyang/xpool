@@ -3,6 +3,7 @@ package xpool
 import (
 	"errors"
 	"sync"
+	"sync/atomic"
 	"time"
 )
 
@@ -14,16 +15,16 @@ var (
 )
 
 type xpool struct {
-	maxActive      int
-	minActive      int
-	maxIdle        int
+	maxActive      int32
+	minActive      int32
+	maxIdle        int32
 	idleTimeOut    time.Duration
-	maxWait        int
+	maxWait        int32
 	maxWaitTimeOut time.Duration
 	//当前等待人数
-	currentWait int
+	currentWait int32
 	//当前资源数
-	currentActive int
+	currentActive int32
 	factory       func() (interface{}, error)
 	close         func(interface{}) error
 	//资源池
@@ -47,7 +48,8 @@ reset:
 		//如果这个资源的上次活跃时间+设置的最大空闲时间小于当前时间，则关闭这个资源。重新获取
 		if conn.time.Add(m.idleTimeOut).Before(time.Now()) {
 			m.close(conn.c)
-			m.currentActive--
+			//m.currentActive--
+			atomic.AddInt32(&m.currentActive, -1)
 			goto reset
 		}
 		return conn.c, nil
@@ -61,7 +63,8 @@ reset:
 			m.Unlock()
 			return nil, err
 		}
-		m.currentActive++
+		//m.currentActive++
+		atomic.AddInt32(&m.currentWait, 1)
 		m.Unlock()
 		return c, nil
 	}
@@ -70,15 +73,18 @@ reset:
 		m.Unlock()
 		return nil, waitListOverflowError
 	} else {
-		m.currentWait++
+		atomic.AddInt32(&m.currentWait, 1)
+		//m.currentWait++
 		m.Unlock()
 		select {
 		//因为从排队队列中拿到的只会是刚丢回来的资源。所以不判断是否过期
 		case conn := <-m.ch:
-			m.currentWait--
+			atomic.AddInt32(&m.currentWait, -1)
+			//m.currentWait--
 			return conn.c, nil
 		case <-time.After(m.maxWaitTimeOut):
-			m.currentWait--
+			//m.currentWait--
+			atomic.AddInt32(&m.currentWait, -1)
 			return nil, waitTimeOutError
 		}
 	}
@@ -89,7 +95,8 @@ func (m *xpool) Release(c interface{}) error {
 	//如果资源池已关闭。则直接close
 	if m.shutdown {
 		m.close(c)
-		m.currentActive--
+		atomic.AddInt32(&m.currentActive, -1)
+		//m.currentActive--
 		return nil
 	}
 	m.Lock()
@@ -100,7 +107,7 @@ func (m *xpool) Release(c interface{}) error {
 		return nil
 	}
 	//如果当前资源数大于最小激活数但空闲资源数小于设置的可空闲资源数，则放回资源池
-	if len(m.ch) < m.minActive+m.maxIdle {
+	if len(m.ch) < int(m.minActive+m.maxIdle) {
 		m.ch <- &conn{c: c, time: time.Now()}
 		return nil
 	}
@@ -109,12 +116,14 @@ func (m *xpool) Release(c interface{}) error {
 	if err != nil {
 		return err
 	}
-	m.currentActive--
+	//m.currentActive--
+	atomic.AddInt32(&m.currentActive, -1)
 	return nil
 }
 
 func (m *xpool) Close(c interface{}) error {
-	m.currentActive--
+	//m.currentActive--
+	atomic.AddInt32(&m.currentActive, -1)
 	err := m.close(c)
 	if err != nil {
 		return err
@@ -165,7 +174,8 @@ func NewXPool(configs *Configs) (XPool, error) {
 		close:          configs.Close,
 		ch:             make(chan *conn, configs.MaxActive),
 	}
-	for i := 1; i < p.minActive; i++ {
+	var i int32 = 1
+	for ; i < p.minActive; i++ {
 		c, err := p.factory()
 		if err != nil {
 			return nil, err
