@@ -13,7 +13,7 @@ type Client struct {
 var doitCount int32 = 0
 
 func (m *Client) Doit() {
-	time.Sleep(time.Millisecond * 800)
+	time.Sleep(time.Millisecond * 50)
 	fmt.Println("doit")
 	atomic.AddInt32(&doitCount, 1)
 }
@@ -41,7 +41,7 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
-	for i := 0; i < 30; i++ {
+	for i := 0; i < 3000; i++ {
 		go func() {
 			client, err := pool.New()
 			if err != nil {
@@ -54,5 +54,6 @@ func main() {
 		}()
 	}
 	time.Sleep(time.Second * 10)
+	pool.ShutDown()
 	fmt.Println(atomic.LoadInt32(&doitCount))
 }

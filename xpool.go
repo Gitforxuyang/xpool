@@ -64,7 +64,7 @@ reset:
 			return nil, err
 		}
 		//m.currentActive++
-		atomic.AddInt32(&m.currentWait, 1)
+		atomic.AddInt32(&m.currentActive, 1)
 		m.Unlock()
 		return c, nil
 	}
