@@ -2,9 +2,9 @@ package main
 
 import (
 	"fmt"
+	"github.com/Gitforxuyang/xpool"
 	"sync/atomic"
 	"time"
-	"xpool"
 )
 
 type Client struct {
